@@ -10,4 +10,12 @@ api_calls:
       endpoint: "devices"
       method: "getDeviceManagementInterface"
       requires_device: true
+      output_filter:
+        - "dns1"
+        - "dns2"
+        - "staticDns"
+        - "vlan"
+        - "staticIp"
+        - "staticGatewayIp"
+        - "staticSubnetMask"
     output: "switch_dns" 

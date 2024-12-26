@@ -11,4 +11,21 @@ api_calls:
       method: "getNetworkClients"
       filters:
         timespan: 86400  # Last 24 hours
+      output_filter:
+        - "id"
+        - "mac"
+        - "description"
+        - "ip"
+        - "ip6"
+        - "user"
+        - "firstSeen"
+        - "lastSeen"
+        - "manufacturer"
+        - "os"
+        - "recentDeviceMac"
+        - "ssid"
+        - "vlan"
+        - "switchport"
+        - "usage.sent"
+        - "usage.recv"
     output: "clients" 

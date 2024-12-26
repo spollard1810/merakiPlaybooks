@@ -295,6 +295,9 @@ class PlaybookExecutor:
                 logger.info(f"API Call: {step.method} for device {device.get('name', device['serial'])}")
                 result = method(**params)
                 
+                # Apply output filter if specified
+                filtered_result = step.filter_response(result)
+                
                 # Add device and network context to the results
                 result_data = {
                     'network': network['name'],
@@ -303,7 +306,7 @@ class PlaybookExecutor:
                     'deviceSerial': device['serial'],
                     'deviceModel': device.get('model', ''),
                     'deviceType': device.get('productType', ''),
-                    'data': result
+                    'data': filtered_result
                 }
                 
                 results.append(result_data)
@@ -436,13 +439,33 @@ class ReportGenerator:
 
 class ApiCall:
     def __init__(self, name: str, endpoint: str, method: str, output_folder: str, 
-                 parameters: Dict = None, filters: Dict = None):
+                 parameters: Dict = None, filters: Dict = None, output_filter: List[str] = None):
         self.name = name
         self.endpoint = endpoint
         self.method = method
         self.output_folder = output_folder
         self.parameters = parameters or {}
         self.filters = filters or {}
+        self.output_filter = output_filter or []  # List of fields to extract from response
         
         # Determine if this call requires a device serial
-        self.requires_device = endpoint.startswith('devices.') 
+        self.requires_device = endpoint.startswith('devices.')
+
+    def filter_response(self, response: Any) -> Dict:
+        """Filter the API response based on output_filter if specified."""
+        if not self.output_filter or not isinstance(response, dict):
+            return response
+            
+        filtered_data = {}
+        for field in self.output_filter:
+            # Handle nested fields with dot notation (e.g., 'staticDns.ip')
+            parts = field.split('.')
+            value = response
+            for part in parts:
+                if isinstance(value, dict):
+                    value = value.get(part)
+                else:
+                    value = None
+                    break
+            filtered_data[field] = value
+        return filtered_data 

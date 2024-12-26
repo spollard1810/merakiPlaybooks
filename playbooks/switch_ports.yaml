@@ -11,6 +11,11 @@ api_calls:
       method: "getNetworkDevices"
       filters:
         productTypes: ["switch"]
+      output_filter:
+        - "name"
+        - "serial"
+        - "model"
+        - "productType"
     output: "switches"
   
   - name: "get_ports"
@@ -18,4 +23,24 @@ api_calls:
       endpoint: "devices.switch.ports"
       method: "getDeviceSwitchPorts"
       requires_device: true
+      output_filter:
+        - "portId"
+        - "name"
+        - "tags"
+        - "enabled"
+        - "type"
+        - "vlan"
+        - "voiceVlan"
+        - "allowedVlans"
+        - "poeEnabled"
+        - "isolationEnabled"
+        - "rstpEnabled"
+        - "stpGuard"
+        - "linkNegotiation"
+        - "portScheduleId"
+        - "udld"
+        - "accessPolicyType"
+        - "stickyMacAllowList"
+        - "stickyMacAllowListLimit"
+        - "stormControlEnabled"
     output: "ports" 

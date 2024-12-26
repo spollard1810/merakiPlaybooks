@@ -9,6 +9,21 @@ api_calls:
     api:
       endpoint: "networks.devices"
       method: "getNetworkDevices"
+      output_filter:
+        - "name"
+        - "serial"
+        - "mac"
+        - "model"
+        - "address"
+        - "lat"
+        - "lng"
+        - "tags"
+        - "networkId"
+        - "productType"
+        - "firmware"
+        - "url"
+        - "notes"
+        - "moveMapMarker"
     output: "devices"
 
   - name: "get_clients"
@@ -17,10 +32,29 @@ api_calls:
       method: "getNetworkClients"
       filters:
         timespan: 2592000  # Last 30 days
+      output_filter:
+        - "id"
+        - "mac"
+        - "description"
+        - "ip"
+        - "user"
+        - "firstSeen"
+        - "lastSeen"
+        - "manufacturer"
+        - "recentDeviceMac"
     output: "clients"
 
   - name: "get_vlans"
     api:
       endpoint: "networks.vlans"
       method: "getNetworkVlans"
+      output_filter:
+        - "id"
+        - "name"
+        - "subnet"
+        - "applianceIp"
+        - "groupPolicyId"
+        - "templateVlanType"
+        - "cidr"
+        - "mask"
     output: "vlans" 

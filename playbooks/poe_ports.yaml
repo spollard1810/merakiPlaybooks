@@ -5,17 +5,25 @@ config:
   author: "Stephen Pollard"
 
 api_calls:
-  - name: "get_switches"
-    api:
-      endpoint: "networks.devices"
-      method: "getNetworkDevices"
-      filters:
-        productTypes: ["switch"]
-    output: "switches"
-  
-  - name: "get_poe_ports"
+  - name: "get_poe_statuses"
     api:
       endpoint: "devices.switch.ports"
-      method: "getDeviceSwitchPorts"
+      method: "getDeviceSwitchPortsStatuses"
       requires_device: true
+      output_filter:
+        - "portId"
+        - "enabled"
+        - "status"
+        - "isUplink"
+        - "speed"
+        - "duplex"
+        - "errors"
+        - "warnings"
+        - "cdp"
+        - "lldp"
+        - "clientCount"
+        - "powerUsageInWh"
+        - "powerDrawInWh"
+        - "powerMode"
+        - "powerAllocatedInWh"
     output: "poe_ports" 
