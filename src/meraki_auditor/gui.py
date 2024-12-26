@@ -209,16 +209,22 @@ class AuditorGUI:
         network_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
         def refresh_network_tree():
-            """Refresh the network tree view"""
+            """Refresh the network tree view and cache devices"""
             # Clear existing items
             for item in network_tree.get_children():
                 network_tree.delete(item)
             
-            # Repopulate
+            # Clear existing device cache
+            self.connection.devices = {}
+            
+            # Repopulate and cache devices
             for network in self.connection.selected_networks:
                 network_node = network_tree.insert("", tk.END, text=network['name'], open=True)
                 try:
                     devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
+                    # Cache devices for this network
+                    self.connection.devices[network['id']] = devices
+                    
                     if not devices:
                         network_tree.insert(network_node, tk.END, text="No devices found")
                         continue
@@ -425,7 +431,7 @@ class AuditorGUI:
                 messagebox.showerror("Error", f"Failed to load playbook: {str(e)}")
         
         def execute_playbook():
-            """Modified execute_playbook to consider device filters and show progress"""
+            """Execute playbook with device filtering and progress tracking"""
             selection = playbook_list.curselection()
             if not selection:
                 messagebox.showwarning("Warning", "Please select a playbook")
@@ -437,12 +443,16 @@ class AuditorGUI:
             # Get filtered devices
             filtered_type = type_var.get()
             if filtered_type != "all":
-                # Update connection's device cache with only filtered devices
-                for network_id in self.connection.selected_networks:
-                    devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network_id)
-                    self.connection.devices[network_id] = [
+                # Create filtered device cache using existing cached devices
+                filtered_devices = {}
+                for network_id, devices in self.connection.devices.items():
+                    filtered_devices[network_id] = [
                         d for d in devices if d.get('productType', '') == filtered_type
                     ]
+                self.executor.devices = filtered_devices
+            else:
+                # Use all cached devices
+                self.executor.devices = self.connection.devices
             
             try:
                 self.status_var.set("Loading playbook...")
