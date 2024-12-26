@@ -206,14 +206,21 @@ class PlaybookExecutor:
                 
                 # Get the appropriate API endpoint
                 api_parts = step.endpoint.split('.')
-                api_endpoint = self.connection.dashboard
-                for part in api_parts:
-                    api_endpoint = getattr(api_endpoint, part)
+                if api_parts[0] == 'networks':
+                    if len(api_parts) == 2:
+                        # Direct network endpoint (e.g., networks.devices)
+                        api_endpoint = getattr(self.connection.dashboard.networks, step.method)
+                        params = {**step.parameters, 'networkId': network['id']}
+                    else:
+                        # Nested network endpoint (e.g., networks.switch.settings)
+                        api_endpoint = getattr(getattr(self.connection.dashboard.networks, api_parts[1]), step.method)
+                        params = {**step.parameters, 'networkId': network['id']}
+                else:
+                    raise ValueError(f"Unsupported network endpoint: {step.endpoint}")
                 
                 # Execute the API call
-                params = {**step.parameters, 'networkId': network['id']}
                 logger.info(f"API Call: {step.method} for network {network['name']}")
-                result = getattr(api_endpoint, step.method)(**params)
+                result = api_endpoint(**params)
                 
                 # Cache devices if this is a device list call
                 if step.endpoint == 'networks.devices':
