@@ -29,6 +29,7 @@ class MerakiConnection:
         self.api_key = api_key
         self.networks = []
         self.selected_networks = []
+        self.devices = {}
         self.dashboard = meraki.DashboardAPI(api_key, output_log=False, print_console=False)
         self.progress_callback = None
         self.status_callback = None

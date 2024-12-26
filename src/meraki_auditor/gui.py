@@ -201,6 +201,41 @@ class AuditorGUI:
         network_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         network_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
+        def refresh_network_tree():
+            """Refresh the network tree view"""
+            # Clear existing items
+            for item in network_tree.get_children():
+                network_tree.delete(item)
+            
+            # Repopulate
+            for network in self.connection.selected_networks:
+                network_node = network_tree.insert("", tk.END, text=network['name'], open=True)
+                try:
+                    devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
+                    if not devices:
+                        network_tree.insert(network_node, tk.END, text="No devices found")
+                        continue
+                        
+                    for device in devices:
+                        device_values = (
+                            device.get('productType', 'Unknown'),
+                            device.get('model', 'Unknown'),
+                            device.get('serial', 'Unknown')
+                        )
+                        device_name = device.get('name', 'Unnamed')
+                        if device_name == 'Unnamed':
+                            device_name = f"{device.get('model', 'Unknown')} - {device.get('serial', 'Unknown')}"
+                            
+                        network_tree.insert(network_node, tk.END, 
+                                          text=device_name,
+                                          values=device_values,
+                                          tags=(device.get('productType', '').lower(),))
+                        
+                except Exception as e:
+                    error_msg = f"Error loading devices: {str(e)}"
+                    logger.error(error_msg)
+                    network_tree.insert(network_node, tk.END, text=error_msg)
+        
         def export_device_inventory():
             """Export all devices from selected networks to CSV"""
             try:
@@ -295,42 +330,6 @@ class AuditorGUI:
                 error_msg = f"Error loading devices: {str(e)}"
                 logger.error(error_msg)
                 network_tree.insert(network_node, tk.END, text=error_msg)
-        
-        # Add a refresh function for the network tree
-        def refresh_network_tree():
-            """Refresh the network tree view"""
-            # Clear existing items
-            for item in network_tree.get_children():
-                network_tree.delete(item)
-            
-            # Repopulate
-            for network in self.connection.selected_networks:
-                network_node = network_tree.insert("", tk.END, text=network['name'], open=True)
-                try:
-                    devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
-                    if not devices:
-                        network_tree.insert(network_node, tk.END, text="No devices found")
-                        continue
-                        
-                    for device in devices:
-                        device_values = (
-                            device.get('productType', 'Unknown'),
-                            device.get('model', 'Unknown'),
-                            device.get('serial', 'Unknown')
-                        )
-                        device_name = device.get('name', 'Unnamed')
-                        if device_name == 'Unnamed':
-                            device_name = f"{device.get('model', 'Unknown')} - {device.get('serial', 'Unknown')}"
-                            
-                        network_tree.insert(network_node, tk.END, 
-                                          text=device_name,
-                                          values=device_values,
-                                          tags=(device.get('productType', '').lower(),))
-                        
-                except Exception as e:
-                    error_msg = f"Error loading devices: {str(e)}"
-                    logger.error(error_msg)
-                    network_tree.insert(network_node, tk.END, text=error_msg)
         
         # Add filter button
         filter_frame = ttk.LabelFrame(execution_panel, text="Device Filters", padding="5")
