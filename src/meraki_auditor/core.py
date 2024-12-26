@@ -217,7 +217,7 @@ class PlaybookExecutor:
                 
                 # Cache devices if this is a device list call
                 if step.endpoint == 'networks.devices':
-                    self.devices[network['id']] = result
+                    self.devices[network['id']] = [d for d in result if 'serial' in d]
                 
                 results.append({
                     'network': network['name'],
@@ -242,15 +242,17 @@ class PlaybookExecutor:
     
     def _execute_device_call(self, step: ApiCall, base_progress: float) -> List[Dict]:
         results = []
-        total_networks = len(self.connection.selected_networks)
         devices_processed = 0
-        total_devices = sum(len(self.devices.get(n['id'], [])) 
-                          for n in self.connection.selected_networks)
+        total_devices = sum(len(devices) for devices in self.devices.values())
         
-        for network_idx, network in enumerate(self.connection.selected_networks, 1):
+        if total_devices == 0:
+            logger.warning("No devices found for device-level API calls")
+            return results
+        
+        for network in self.connection.selected_networks:
             network_devices = self.devices.get(network['id'], [])
             
-            for device_idx, device in enumerate(network_devices, 1):
+            for device in network_devices:
                 try:
                     self.update_status(
                         f"Processing device {devices_processed + 1}/{total_devices}: "
@@ -269,22 +271,17 @@ class PlaybookExecutor:
                     result = getattr(api_endpoint, step.method)(**params)
                     
                     # Add device and network context to the results
-                    if isinstance(result, list):
-                        for item in result:
-                            item.update({
-                                'deviceName': device.get('name', device['serial']),
-                                'deviceSerial': device['serial'],
-                                'deviceModel': device.get('model', ''),
-                                'network': network['name'],
-                                'networkId': network['id']
-                            })
-                    
-                    results.append({
+                    result_data = {
                         'network': network['name'],
                         'networkId': network['id'],
-                        'device': device['name'] if 'name' in device else device['serial'],
+                        'deviceName': device.get('name', device['serial']),
+                        'deviceSerial': device['serial'],
+                        'deviceModel': device.get('model', ''),
+                        'deviceType': device.get('productType', ''),
                         'data': result
-                    })
+                    }
+                    
+                    results.append(result_data)
                     
                 except Exception as e:
                     error_msg = (f"Error processing device {device.get('name', device['serial'])} "
@@ -293,7 +290,10 @@ class PlaybookExecutor:
                     results.append({
                         'network': network['name'],
                         'networkId': network['id'],
-                        'device': device['name'] if 'name' in device else device['serial'],
+                        'deviceName': device.get('name', device['serial']),
+                        'deviceSerial': device['serial'],
+                        'deviceModel': device.get('model', ''),
+                        'deviceType': device.get('productType', ''),
                         'error': str(e)
                     })
                 
