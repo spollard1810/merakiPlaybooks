@@ -437,19 +437,34 @@ class ReportGenerator:
         
         return report_dir 
 
+class PlaybookConfig:
+    def __init__(self, name: str, description: str, version: str, author: str):
+        self.name = name
+        self.description = description
+        self.version = version
+        self.author = author
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'PlaybookConfig':
+        return cls(
+            name=data.get('name', ''),
+            description=data.get('description', ''),
+            version=data.get('version', ''),
+            author=data.get('author', '')
+        )
+
 class ApiCall:
     def __init__(self, name: str, endpoint: str, method: str, output_folder: str, 
-                 parameters: Dict = None, filters: Dict = None, output_filter: List[str] = None):
+                 parameters: Dict = None, filters: Dict = None, output_filter: List[str] = None,
+                 requires_device: bool = False):
         self.name = name
         self.endpoint = endpoint
         self.method = method
         self.output_folder = output_folder
         self.parameters = parameters or {}
         self.filters = filters or {}
-        self.output_filter = output_filter or []  # List of fields to extract from response
-        
-        # Determine if this call requires a device serial
-        self.requires_device = endpoint.startswith('devices.')
+        self.output_filter = output_filter or []
+        self.requires_device = requires_device or endpoint.startswith('devices.')
 
     def filter_response(self, response: Any) -> Dict:
         """Filter the API response based on output_filter if specified."""
@@ -468,4 +483,39 @@ class ApiCall:
                     value = None
                     break
             filtered_data[field] = value
-        return filtered_data 
+        return filtered_data
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'ApiCall':
+        api_data = data.get('api', {})
+        return cls(
+            name=data.get('name', ''),
+            endpoint=api_data.get('endpoint', ''),
+            method=api_data.get('method', ''),
+            output_folder=data.get('output', ''),
+            parameters=api_data.get('parameters', {}),
+            filters=api_data.get('filters', {}),
+            output_filter=api_data.get('output_filter', []),
+            requires_device=api_data.get('requires_device', False)
+        ) 
+
+class Playbook:
+    def __init__(self, config: PlaybookConfig, api_calls: List[ApiCall]):
+        self.config = config
+        self.api_calls = api_calls
+
+    @classmethod
+    def from_yaml(cls, yaml_path: Path) -> 'Playbook':
+        """Load a playbook from a YAML file."""
+        try:
+            with open(yaml_path, 'r') as f:
+                data = yaml.safe_load(f)
+            
+            config = PlaybookConfig.from_dict(data.get('config', {}))
+            api_calls = [ApiCall.from_dict(call) for call in data.get('api_calls', [])]
+            
+            return cls(config=config, api_calls=api_calls)
+            
+        except Exception as e:
+            logger.error(f"Failed to load playbook {yaml_path}: {e}")
+            raise ValueError(f"Invalid playbook format: {e}") 
