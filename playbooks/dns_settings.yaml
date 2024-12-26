@@ -22,6 +22,6 @@ api_calls:
 
   - name: "get_network_settings"
     api:
-      endpoint: "networks.switch"
+      endpoint: "networks"
       method: "getNetworkSwitchSettings"
     output: "switch_network_settings" 
