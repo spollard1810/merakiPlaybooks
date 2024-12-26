@@ -211,17 +211,17 @@ class PlaybookExecutor:
                     api_endpoint = getattr(api_endpoint, part)
                 
                 # Execute the API call
-                params = {**step.parameters, 'networkId': network['networkId']}
+                params = {**step.parameters, 'networkId': network['id']}
                 logger.info(f"API Call: {step.method} for network {network['name']}")
                 result = getattr(api_endpoint, step.method)(**params)
                 
                 # Cache devices if this is a device list call
                 if step.endpoint == 'networks.devices':
-                    self.devices[network['networkId']] = result
+                    self.devices[network['id']] = result
                 
                 results.append({
                     'network': network['name'],
-                    'networkId': network['networkId'],
+                    'networkId': network['id'],
                     'data': result
                 })
                 
@@ -230,7 +230,7 @@ class PlaybookExecutor:
                 logger.error(error_msg)
                 results.append({
                     'network': network['name'],
-                    'networkId': network['networkId'],
+                    'networkId': network['id'],
                     'error': str(e)
                 })
             
@@ -244,11 +244,11 @@ class PlaybookExecutor:
         results = []
         total_networks = len(self.connection.selected_networks)
         devices_processed = 0
-        total_devices = sum(len(self.devices.get(n['networkId'], [])) 
+        total_devices = sum(len(self.devices.get(n['id'], [])) 
                           for n in self.connection.selected_networks)
         
         for network_idx, network in enumerate(self.connection.selected_networks, 1):
-            network_devices = self.devices.get(network['networkId'], [])
+            network_devices = self.devices.get(network['id'], [])
             
             for device_idx, device in enumerate(network_devices, 1):
                 try:
@@ -276,12 +276,12 @@ class PlaybookExecutor:
                                 'deviceSerial': device['serial'],
                                 'deviceModel': device.get('model', ''),
                                 'network': network['name'],
-                                'networkId': network['networkId']
+                                'networkId': network['id']
                             })
                     
                     results.append({
                         'network': network['name'],
-                        'networkId': network['networkId'],
+                        'networkId': network['id'],
                         'device': device['name'] if 'name' in device else device['serial'],
                         'data': result
                     })
@@ -292,7 +292,7 @@ class PlaybookExecutor:
                     logger.error(error_msg)
                     results.append({
                         'network': network['name'],
-                        'networkId': network['networkId'],
+                        'networkId': network['id'],
                         'device': device['name'] if 'name' in device else device['serial'],
                         'error': str(e)
                     })
