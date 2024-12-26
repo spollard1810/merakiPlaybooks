@@ -330,39 +330,88 @@ class ReportGenerator:
         with open(report_dir / 'metadata.json', 'w') as f:
             json.dump(self.executor.results['metadata'], f, indent=2)
         
-        # Process each result type
-        for folder, data in self.executor.results['results'].items():
-            folder_path = report_dir / folder
-            folder_path.mkdir(exist_ok=True)
+        # Create a log file for the execution
+        log_file_path = report_dir / f'execution_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+        with open(log_file_path, 'w') as log_file:
+            # Write metadata
+            log_file.write("=== Execution Metadata ===\n")
+            for key, value in self.executor.results['metadata'].items():
+                log_file.write(f"{key}: {value}\n")
+                print(f"{key}: {value}")
+            log_file.write("\n")
+            print()
             
-            # Extract all data points to determine all possible columns
-            all_data = []
-            for result in data:
-                if isinstance(result.get('data'), list):
-                    # If the data is a list, extend it
-                    all_data.extend(result['data'])
-                elif isinstance(result.get('data'), dict):
-                    # If it's a single dict, append it
-                    all_data.append(result['data'])
+            # Process each result type
+            for folder, data in self.executor.results['results'].items():
+                folder_path = report_dir / folder
+                folder_path.mkdir(exist_ok=True)
                 
-                # Handle errors if any
-                if 'error' in result:
-                    all_data.append({'error': result['error'], 'network': result['network']})
-            
-            if all_data:
-                # Convert to DataFrame with dynamic columns
-                df = pd.json_normalize(all_data)
+                log_file.write(f"\n=== {folder} Results ===\n")
+                print(f"\n=== {folder} Results ===")
                 
-                # Add timestamp column
-                df['timestamp'] = datetime.now().isoformat()
+                flattened_data = []
+                for result in data:
+                    if 'error' in result:
+                        error_msg = f"Error in network {result['network']}: {result['error']}"
+                        log_file.write(f"{error_msg}\n")
+                        print(error_msg)
+                        continue
+                    
+                    # Start with the common device info
+                    flat_result = {
+                        'network': result['network'],
+                        'deviceName': result.get('deviceName', ''),
+                        'deviceSerial': result.get('deviceSerial', ''),
+                        'deviceModel': result.get('deviceModel', ''),
+                        'deviceType': result.get('deviceType', '')
+                    }
+                    
+                    # Log device info
+                    device_info = f"\nDevice: {flat_result['deviceName']} ({flat_result['deviceSerial']})"
+                    device_info += f"\nNetwork: {flat_result['network']}"
+                    device_info += f"\nModel: {flat_result['deviceModel']}"
+                    device_info += f"\nType: {flat_result['deviceType']}"
+                    log_file.write(f"{device_info}\n")
+                    print(device_info)
+                    
+                    # Flatten and log the API response data
+                    if isinstance(result['data'], dict):
+                        log_file.write("Settings:\n")
+                        print("Settings:")
+                        for key, value in result['data'].items():
+                            flat_result[key] = value
+                            log_file.write(f"  {key}: {value}\n")
+                            print(f"  {key}: {value}")
+                    elif isinstance(result['data'], list):
+                        if result['data'] and isinstance(result['data'][0], dict):
+                            log_file.write("Settings:\n")
+                            print("Settings:")
+                            for key, value in result['data'][0].items():
+                                flat_result[key] = value
+                                log_file.write(f"  {key}: {value}\n")
+                                print(f"  {key}: {value}")
+                    
+                    log_file.write("-" * 50 + "\n")
+                    print("-" * 50)
+                    flattened_data.append(flat_result)
                 
-                # Save to CSV with all headers
-                csv_path = folder_path / f'{folder}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-                df.to_csv(csv_path, index=False)
-                
-                # Generate a schema file to document the columns
-                schema = {col: str(df[col].dtype) for col in df.columns}
-                with open(folder_path / 'schema.json', 'w') as f:
-                    json.dump(schema, f, indent=2)
+                if flattened_data:
+                    # Convert to DataFrame - this will automatically align all columns
+                    df = pd.DataFrame(flattened_data)
+                    
+                    # Add timestamp
+                    df['timestamp'] = datetime.now().isoformat()
+                    
+                    # Save to CSV
+                    csv_path = folder_path / f'{folder}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+                    df.to_csv(csv_path, index=False)
+                    
+                    # Generate a schema file to document the columns
+                    schema = {col: str(df[col].dtype) for col in df.columns}
+                    with open(folder_path / 'schema.json', 'w') as f:
+                        json.dump(schema, f, indent=2)
+                    
+                    log_file.write(f"\nGenerated CSV with columns: {list(df.columns)}\n")
+                    print(f"\nGenerated CSV with columns: {list(df.columns)}")
         
         return report_dir 
