@@ -10,6 +10,12 @@ class AuditorGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Meraki Network Auditor")
+        
+        # Initialize variables first
+        self.status_var = tk.StringVar(value="Ready")
+        self.progress_var = tk.DoubleVar(value=0)
+        
+        # Initialize other attributes
         self.connection: Optional[MerakiConnection] = None
         self.executor: Optional[PlaybookExecutor] = None
         self.report_generator: Optional[ReportGenerator] = None
