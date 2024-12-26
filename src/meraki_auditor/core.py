@@ -105,8 +105,18 @@ class MerakiConnection:
             raise ConnectionError(error_msg)
     
     def select_networks(self, network_ids: List[str]):
+        """Select networks and cache their devices"""
         self.selected_networks = [n for n in self.networks if n['id'] in network_ids]
         self.update_status(f"Selected {len(self.selected_networks)} networks")
+        
+        # Pre-cache devices for selected networks
+        for network in self.selected_networks:
+            try:
+                devices = self.dashboard.networks.getNetworkDevices(networkId=network['id'])
+                self.devices[network['id']] = devices
+                self.update_status(f"Loaded {len(devices)} devices from {network['name']}")
+            except Exception as e:
+                logger.error(f"Failed to load devices for network {network['name']}: {e}")
 
 class PlaybookExecutor:
     def __init__(self, connection: MerakiConnection):

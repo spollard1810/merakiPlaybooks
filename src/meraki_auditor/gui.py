@@ -5,6 +5,9 @@ from .core import MerakiConnection, PlaybookExecutor, ReportGenerator
 from .playbook import Playbook
 from .utils import DirectoryManager
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AuditorGUI:
     def __init__(self):
@@ -199,21 +202,79 @@ class AuditorGUI:
         network_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Populate network tree
-        for network in self.networks:
-            if network['id'] in self.selected_networks:
+        for network in self.connection.selected_networks:
+            network_node = network_tree.insert("", tk.END, text=network['name'], open=True)
+            try:
+                # Get devices for this network
+                logger.info(f"Loading devices for network: {network['name']}")
+                devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
+                
+                if not devices:
+                    network_tree.insert(network_node, tk.END, text="No devices found")
+                    continue
+                    
+                for device in devices:
+                    device_values = (
+                        device.get('productType', 'Unknown'),
+                        device.get('model', 'Unknown'),
+                        device.get('serial', 'Unknown')
+                    )
+                    device_name = device.get('name', 'Unnamed')
+                    if device_name == 'Unnamed':
+                        device_name = f"{device.get('model', 'Unknown')} - {device.get('serial', 'Unknown')}"
+                        
+                    network_tree.insert(network_node, tk.END, 
+                                      text=device_name,
+                                      values=device_values,
+                                      tags=(device.get('productType', '').lower(),))
+                    
+                    logger.info(f"Added device: {device_name} ({device.get('productType', 'Unknown')})")
+                    
+            except Exception as e:
+                error_msg = f"Error loading devices: {str(e)}"
+                logger.error(error_msg)
+                network_tree.insert(network_node, tk.END, text=error_msg)
+        
+        # Add a refresh function for the network tree
+        def refresh_network_tree():
+            """Refresh the network tree view"""
+            # Clear existing items
+            for item in network_tree.get_children():
+                network_tree.delete(item)
+            
+            # Repopulate
+            for network in self.connection.selected_networks:
                 network_node = network_tree.insert("", tk.END, text=network['name'], open=True)
                 try:
                     devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
+                    if not devices:
+                        network_tree.insert(network_node, tk.END, text="No devices found")
+                        continue
+                        
                     for device in devices:
                         device_values = (
                             device.get('productType', 'Unknown'),
                             device.get('model', 'Unknown'),
                             device.get('serial', 'Unknown')
                         )
-                        network_tree.insert(network_node, tk.END, text=device.get('name', 'Unnamed'), 
-                                          values=device_values)
+                        device_name = device.get('name', 'Unnamed')
+                        if device_name == 'Unnamed':
+                            device_name = f"{device.get('model', 'Unknown')} - {device.get('serial', 'Unknown')}"
+                            
+                        network_tree.insert(network_node, tk.END, 
+                                          text=device_name,
+                                          values=device_values,
+                                          tags=(device.get('productType', '').lower(),))
+                        
                 except Exception as e:
-                    network_tree.insert(network_node, tk.END, text=f"Error loading devices: {str(e)}")
+                    error_msg = f"Error loading devices: {str(e)}"
+                    logger.error(error_msg)
+                    network_tree.insert(network_node, tk.END, text=error_msg)
+        
+        # Add refresh button to network panel
+        refresh_btn = ttk.Button(network_button_frame, text="Refresh Devices", 
+                                 command=refresh_network_tree)
+        refresh_btn.pack(side=tk.LEFT, padx=5)
         
         # Add export button frame below tree
         network_button_frame = ttk.Frame(network_panel)
