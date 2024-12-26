@@ -259,16 +259,14 @@ class PlaybookExecutor:
                         f"{device.get('name', device['serial'])} in network {network['name']}"
                     )
                     
-                    # Get the appropriate API endpoint
-                    api_parts = step.endpoint.split('.')
-                    api_endpoint = self.connection.dashboard
-                    for part in api_parts:
-                        api_endpoint = getattr(api_endpoint, part)
+                    # Get the appropriate API endpoint and method
+                    api_endpoint = self.connection.dashboard.devices
+                    method = getattr(api_endpoint, step.method)
                     
                     # Execute the API call for each device
                     params = {**step.parameters, 'serial': device['serial']}
                     logger.info(f"API Call: {step.method} for device {device.get('name', device['serial'])}")
-                    result = getattr(api_endpoint, step.method)(**params)
+                    result = method(**params)
                     
                     # Add device and network context to the results
                     result_data = {

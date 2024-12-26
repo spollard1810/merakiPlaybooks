@@ -15,7 +15,7 @@ api_calls:
 
   - name: "get_dns_settings"
     api:
-      endpoint: "devices.management.interface"
+      endpoint: "devices"
       method: "getDeviceManagementInterface"
       requires_device: true
     output: "switch_dns"
