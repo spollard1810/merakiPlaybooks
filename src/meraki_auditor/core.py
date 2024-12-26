@@ -249,63 +249,59 @@ class PlaybookExecutor:
     def _execute_device_call(self, step: ApiCall, base_progress: float) -> List[Dict]:
         results = []
         devices_processed = 0
-        total_devices = sum(len(devices) for devices in self.devices.values())
         
+        # Get all devices from cache
+        all_devices = []
+        for network in self.connection.selected_networks:
+            network_devices = self.connection.devices.get(network['id'], [])
+            all_devices.extend((network, device) for device in network_devices)
+        
+        total_devices = len(all_devices)
         if total_devices == 0:
-            logger.warning("No devices found for device-level API calls")
+            logger.warning("No devices found for API calls")
             return results
         
-        for network in self.connection.selected_networks:
-            network_devices = self.devices.get(network['id'], [])
-            
-            for device in network_devices:
-                try:
-                    self.update_status(
-                        f"Processing device {devices_processed + 1}/{total_devices}: "
-                        f"{device.get('name', device['serial'])} in network {network['name']}"
-                    )
-                    
-                    # Get the appropriate API endpoint and method
-                    api_endpoint = self.connection.dashboard.devices
-                    method = getattr(api_endpoint, step.method)
-                    
-                    # Execute the API call for each device
-                    params = {**step.parameters, 'serial': device['serial']}
-                    logger.info(f"API Call: {step.method} for device {device.get('name', device['serial'])}")
-                    result = method(**params)
-                    
-                    # Add device and network context to the results
-                    result_data = {
-                        'network': network['name'],
-                        'networkId': network['id'],
-                        'deviceName': device.get('name', device['serial']),
-                        'deviceSerial': device['serial'],
-                        'deviceModel': device.get('model', ''),
-                        'deviceType': device.get('productType', ''),
-                        'data': result
-                    }
-                    
-                    results.append(result_data)
-                    
-                except Exception as e:
-                    error_msg = (f"Error processing device {device.get('name', device['serial'])} "
-                               f"in network {network['name']}: {str(e)}")
-                    logger.error(error_msg)
-                    results.append({
-                        'network': network['name'],
-                        'networkId': network['id'],
-                        'deviceName': device.get('name', device['serial']),
-                        'deviceSerial': device['serial'],
-                        'deviceModel': device.get('model', ''),
-                        'deviceType': device.get('productType', ''),
-                        'error': str(e)
-                    })
+        for network, device in all_devices:
+            try:
+                self.update_status(
+                    f"Processing device {devices_processed + 1}/{total_devices}: "
+                    f"{device.get('name', device['serial'])} in network {network['name']}"
+                )
                 
-                devices_processed += 1
-                # Update progress within this step
-                step_progress = base_progress + (devices_processed / total_devices * 
-                                               (100 / len(self.current_playbook.api_calls)))
-                self.update_progress(step_progress)
+                # Get the appropriate API endpoint and method
+                api_endpoint = self.connection.dashboard.devices
+                method = getattr(api_endpoint, step.method)
+                
+                # Execute the API call for each device
+                params = {**step.parameters, 'serial': device['serial']}
+                logger.info(f"API Call: {step.method} for device {device.get('name', device['serial'])}")
+                result = method(**params)
+                
+                # Add device and network context to the results
+                result_data = {
+                    'network': network['name'],
+                    'networkId': network['id'],
+                    'deviceName': device.get('name', device['serial']),
+                    'deviceSerial': device['serial'],
+                    'deviceModel': device.get('model', ''),
+                    'deviceType': device.get('productType', ''),
+                    'data': result
+                }
+                
+                results.append(result_data)
+                logger.info(f"Successfully got data for device {device.get('name', device['serial'])}")
+                
+            except Exception as e:
+                # Just log the error and continue
+                error_msg = (f"Skipping device {device.get('name', device['serial'])} "
+                           f"in network {network['name']}: {str(e)}")
+                logger.info(error_msg)  # Changed to info since we expect some devices to fail
+            
+            devices_processed += 1
+            # Update progress within this step
+            step_progress = base_progress + (devices_processed / total_devices * 
+                                           (100 / len(self.current_playbook.api_calls)))
+            self.update_progress(step_progress)
         
         return results
 

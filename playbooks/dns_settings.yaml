@@ -5,23 +5,9 @@ config:
   author: "Stephen Pollard"
 
 api_calls:
-  - name: "get_switches"
-    api:
-      endpoint: "networks.devices"
-      method: "getNetworkDevices"
-      filters:
-        productTypes: ["switch"]
-    output: "switches"
-
   - name: "get_dns_settings"
     api:
       endpoint: "devices"
       method: "getDeviceManagementInterface"
       requires_device: true
-    output: "switch_dns"
-
-  - name: "get_network_settings"
-    api:
-      endpoint: "networks"
-      method: "getNetworkSwitchSettings"
-    output: "switch_network_settings" 
+    output: "switch_dns" 
