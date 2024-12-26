@@ -1,0 +1,27 @@
+config:
+  name: "Switch DNS Settings Audit"
+  description: "Collect DNS configurations from all network switches"
+  version: "1.0"
+  author: "Stephen Pollard"
+
+api_calls:
+  - name: "get_switches"
+    api:
+      endpoint: "networks.devices"
+      method: "getNetworkDevices"
+      filters:
+        productTypes: ["switch"]
+    output: "switches"
+
+  - name: "get_dns_settings"
+    api:
+      endpoint: "devices.managementInterface"
+      method: "getDeviceManagementInterface"
+      requires_device: true
+    output: "switch_dns"
+
+  - name: "get_network_settings"
+    api:
+      endpoint: "networks.switch.settings"
+      method: "getNetworkSwitchSettings"
+    output: "switch_network_settings" 

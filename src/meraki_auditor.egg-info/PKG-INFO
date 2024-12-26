@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: meraki_auditor
+Version: 0.1.0
+Requires-Python: >=3.7
+Requires-Dist: meraki>=1.34.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: pandas>=1.5.0
+Requires-Dist: tk

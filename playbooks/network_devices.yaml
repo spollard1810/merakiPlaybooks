@@ -1,0 +1,26 @@
+config:
+  name: "Network Devices Audit"
+  description: "Audit all devices in selected networks"
+  version: "1.0"
+  author: "Stephen Pollard"
+
+api_calls:
+  - name: "get_devices"
+    api:
+      endpoint: "networks.devices"
+      method: "getNetworkDevices"
+    output: "devices"
+
+  - name: "get_clients"
+    api:
+      endpoint: "networks.clients"
+      method: "getNetworkClients"
+      filters:
+        timespan: 2592000  # Last 30 days
+    output: "clients"
+
+  - name: "get_vlans"
+    api:
+      endpoint: "networks.vlans"
+      method: "getNetworkVlans"
+    output: "vlans" 

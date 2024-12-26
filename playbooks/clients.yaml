@@ -1,0 +1,14 @@
+config:
+  name: "Client Audit"
+  description: "Collect all client information"
+  version: "1.0"
+  author: "Stephen Pollard"
+
+api_calls:
+  - name: "get_clients"
+    api:
+      endpoint: "networks.clients"
+      method: "getNetworkClients"
+      filters:
+        timespan: 86400  # Last 24 hours
+    output: "clients" 

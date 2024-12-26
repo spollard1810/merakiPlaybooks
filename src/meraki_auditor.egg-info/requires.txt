@@ -1,0 +1,4 @@
+meraki>=1.34.0
+pyyaml>=6.0
+pandas>=1.5.0
+tk

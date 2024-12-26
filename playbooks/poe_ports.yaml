@@ -1,0 +1,21 @@
+config:
+  name: "PoE Ports Audit"
+  description: "Collect PoE information from all switches"
+  version: "1.0"
+  author: "Stephen Pollard"
+
+api_calls:
+  - name: "get_switches"
+    api:
+      endpoint: "networks.devices"
+      method: "getNetworkDevices"
+      filters:
+        productTypes: ["switch"]
+    output: "switches"
+  
+  - name: "get_poe_ports"
+    api:
+      endpoint: "devices.switch.ports"
+      method: "getDeviceSwitchPorts"
+      requires_device: true
+    output: "poe_ports" 

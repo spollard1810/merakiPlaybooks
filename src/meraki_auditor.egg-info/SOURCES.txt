@@ -1,0 +1,14 @@
+setup.py
+src/meraki_auditor/__init__.py
+src/meraki_auditor/__main__.py
+src/meraki_auditor/core.py
+src/meraki_auditor/create_playbook.py
+src/meraki_auditor/gui.py
+src/meraki_auditor/playbook.py
+src/meraki_auditor/playbook_creator.py
+src/meraki_auditor/utils.py
+src/meraki_auditor.egg-info/PKG-INFO
+src/meraki_auditor.egg-info/SOURCES.txt
+src/meraki_auditor.egg-info/dependency_links.txt
+src/meraki_auditor.egg-info/requires.txt
+src/meraki_auditor.egg-info/top_level.txt
