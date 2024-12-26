@@ -11,6 +11,14 @@ class ApiCall:
     filters: Dict[str, Any]
     output: str
     requires_device: bool = False
+    
+    @property
+    def output_folder(self) -> str:
+        return self.output
+    
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        return self.filters
 
 class PlaybookConfig:
     def __init__(self, data: Dict[str, Any]):

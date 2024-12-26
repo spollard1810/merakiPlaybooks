@@ -121,6 +121,12 @@ class AuditorGUI:
         
         self.connection = MerakiConnection(api_key)
         
+        # Set up callbacks for connection
+        self.connection.set_callbacks(
+            progress_callback=lambda p: self.progress_var.set(p),
+            status_callback=lambda s: self.status_var.set(s)
+        )
+        
         try:
             if not self.connection.authenticate():
                 messagebox.showerror("Error", "Invalid API key")
@@ -389,7 +395,7 @@ class AuditorGUI:
                 messagebox.showerror("Error", f"Failed to load playbook: {str(e)}")
         
         def execute_playbook():
-            """Modified execute_playbook to consider device filters"""
+            """Modified execute_playbook to consider device filters and show progress"""
             selection = playbook_list.curselection()
             if not selection:
                 messagebox.showwarning("Warning", "Please select a playbook")
@@ -410,17 +416,20 @@ class AuditorGUI:
             
             try:
                 self.status_var.set("Loading playbook...")
-                self.progress_var.set(20)
+                self.progress_var.set(0)
                 
                 self.executor.load_playbook(playbook_path)
                 
-                self.status_var.set("Executing playbook...")
-                self.progress_var.set(40)
+                # Set up callbacks
+                self.executor.set_callbacks(
+                    progress_callback=lambda p: self.progress_var.set(p),
+                    status_callback=lambda s: self.status_var.set(s)
+                )
                 
                 results = self.executor.execute()
                 
                 self.status_var.set("Generating report...")
-                self.progress_var.set(80)
+                self.progress_var.set(90)
                 
                 report_path = self.report_generator.generate_report('csv', playbook_name)
                 
