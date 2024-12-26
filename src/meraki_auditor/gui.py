@@ -177,10 +177,17 @@ class AuditorGUI:
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # ===== NETWORK PANEL (LEFT) =====
+        # Create all three main panels first
         network_panel = ttk.LabelFrame(main_frame, text="Selected Networks and Devices", padding="5")
         network_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
+        playbook_panel = ttk.LabelFrame(main_frame, text="Available Playbooks", padding="5")
+        playbook_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        
+        execution_panel = ttk.Frame(main_frame)
+        execution_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # ===== NETWORK PANEL (LEFT) =====
         # Network tree frame
         tree_frame = ttk.Frame(network_panel)
         tree_frame.pack(fill=tk.BOTH, expand=True)
@@ -246,17 +253,16 @@ class AuditorGUI:
                 report_path = dir_manager.create_report_directory("device_inventory")
                 
                 all_devices = []
-                for network in self.networks:
-                    if network['id'] in self.selected_networks:
-                        try:
-                            devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
-                            for device in devices:
-                                device['networkName'] = network['name']
-                                device['networkId'] = network['id']
-                                all_devices.append(device)
-                        except Exception as e:
-                            messagebox.showerror("Error", 
-                                               f"Failed to get devices for network {network['name']}: {str(e)}")
+                for network in self.connection.selected_networks:
+                    try:
+                        devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
+                        for device in devices:
+                            device['networkName'] = network['name']
+                            device['networkId'] = network['id']
+                            all_devices.append(device)
+                    except Exception as e:
+                        messagebox.showerror("Error", 
+                                           f"Failed to get devices for network {network['name']}: {str(e)}")
                 
                 if all_devices:
                     import pandas as pd
@@ -297,41 +303,21 @@ class AuditorGUI:
                                command=export_device_inventory)
         export_btn.pack(side=tk.LEFT, padx=5)
         
-        # Populate network tree
-        for network in self.connection.selected_networks:
-            network_node = network_tree.insert("", tk.END, text=network['name'], open=True)
-            try:
-                # Get devices for this network
-                logger.info(f"Loading devices for network: {network['name']}")
-                devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
-                
-                if not devices:
-                    network_tree.insert(network_node, tk.END, text="No devices found")
-                    continue
-                    
-                for device in devices:
-                    device_values = (
-                        device.get('productType', 'Unknown'),
-                        device.get('model', 'Unknown'),
-                        device.get('serial', 'Unknown')
-                    )
-                    device_name = device.get('name', 'Unnamed')
-                    if device_name == 'Unnamed':
-                        device_name = f"{device.get('model', 'Unknown')} - {device.get('serial', 'Unknown')}"
-                        
-                    network_tree.insert(network_node, tk.END, 
-                                      text=device_name,
-                                      values=device_values,
-                                      tags=(device.get('productType', '').lower(),))
-                    
-                    logger.info(f"Added device: {device_name} ({device.get('productType', 'Unknown')})")
-                    
-            except Exception as e:
-                error_msg = f"Error loading devices: {str(e)}"
-                logger.error(error_msg)
-                network_tree.insert(network_node, tk.END, text=error_msg)
+        # ===== PLAYBOOK PANEL (MIDDLE) =====
+        # Create playbook listbox
+        playbook_frame = ttk.Frame(playbook_panel)
+        playbook_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Add filter button
+        playbook_list = tk.Listbox(playbook_frame, width=30)
+        playbook_list.pack(side=tk.LEFT, fill=tk.Y)
+        
+        # Add scrollbar to playbook list
+        playbook_scroll = ttk.Scrollbar(playbook_frame, orient=tk.VERTICAL, command=playbook_list.yview)
+        playbook_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        playbook_list.configure(yscrollcommand=playbook_scroll.set)
+        
+        # ===== EXECUTION PANEL (RIGHT) =====
+        # Add device filter
         filter_frame = ttk.LabelFrame(execution_panel, text="Device Filters", padding="5")
         filter_frame.pack(fill=tk.X, pady=(0, 5))
         
@@ -342,7 +328,7 @@ class AuditorGUI:
         type_var = tk.StringVar(value="all")
         type_combo = ttk.Combobox(type_frame, textvariable=type_var, 
                                  values=["all"] + list(set(d.get('productType', '') 
-                                                         for n in self.networks 
+                                                         for n in self.connection.selected_networks 
                                                          for d in self.connection.dashboard.networks.getNetworkDevices(networkId=n['id']))))
         type_combo.pack(side=tk.LEFT, padx=5)
         
@@ -383,12 +369,10 @@ class AuditorGUI:
         execution_frame.pack(fill=tk.X, pady=(0, 5))
         
         # Status label
-        self.status_var = tk.StringVar(value="Ready")
         status_label = ttk.Label(execution_frame, textvariable=self.status_var)
         status_label.pack(fill=tk.X, pady=5)
         
         # Progress bar
-        self.progress_var = tk.DoubleVar()
         progress_bar = ttk.Progressbar(execution_frame, mode='determinate', variable=self.progress_var)
         progress_bar.pack(fill=tk.X, pady=5)
         
@@ -505,196 +489,5 @@ class AuditorGUI:
                                              for name in dir_manager.get_playbooks().keys()])
         refresh_btn.pack(side=tk.RIGHT, padx=5)
         
-        # ===== PLAYBOOK PANEL (MIDDLE) =====
-        playbook_panel = ttk.LabelFrame(main_frame, text="Available Playbooks", padding="5")
-        playbook_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
-        
-        # Create playbook listbox
-        playbook_frame = ttk.Frame(playbook_panel)
-        playbook_frame.pack(fill=tk.BOTH, expand=True)
-        
-        playbook_list = tk.Listbox(playbook_frame, width=30)
-        playbook_list.pack(side=tk.LEFT, fill=tk.Y)
-        
-        # Add scrollbar to playbook list
-        playbook_scroll = ttk.Scrollbar(playbook_frame, orient=tk.VERTICAL, command=playbook_list.yview)
-        playbook_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        playbook_list.configure(yscrollcommand=playbook_scroll.set)
-        
-        # Create execution panel (modified from original)
-        execution_panel = ttk.Frame(main_frame)
-        execution_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # Add device filter (new)
-        filter_frame = ttk.LabelFrame(execution_panel, text="Device Filters", padding="5")
-        filter_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        # Device type filter
-        type_frame = ttk.Frame(filter_frame)
-        type_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(type_frame, text="Device Type:").pack(side=tk.LEFT)
-        type_var = tk.StringVar(value="all")
-        type_combo = ttk.Combobox(type_frame, textvariable=type_var, 
-                                 values=["all"] + list(set(d.get('productType', '') 
-                                                         for n in self.networks 
-                                                         for d in self.connection.dashboard.networks.getNetworkDevices(networkId=n['id']))))
-        type_combo.pack(side=tk.LEFT, padx=5)
-        
-        def apply_device_filter(*args):
-            """Filter devices in tree based on selected type"""
-            filter_type = type_var.get()
-            for network_id in network_tree.get_children():
-                for device_id in network_tree.get_children(network_id):
-                    device_type = network_tree.item(device_id)['values'][0]
-                    if filter_type == "all" or device_type == filter_type:
-                        network_tree.item(device_id, tags=())  # Show
-                    else:
-                        network_tree.item(device_id, tags=('hidden',))  # Hide
-            
-            network_tree.tag_configure('hidden', hide=True)
-        
-        type_combo.bind('<<ComboboxSelected>>', apply_device_filter)
-        
-        # Add filter button
-        ttk.Button(filter_frame, text="Clear Filters", 
-                   command=lambda: [type_var.set("all"), apply_device_filter()]).pack(pady=5)
-        
-        # Preview section
-        preview_frame = ttk.LabelFrame(execution_panel, text="Playbook Preview", padding="5")
-        preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
-        
-        # Preview text widget
-        preview_text = tk.Text(preview_frame, wrap=tk.WORD, height=10, width=50)
-        preview_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        preview_scroll = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=preview_text.yview)
-        preview_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        preview_text.configure(yscrollcommand=preview_scroll.set)
-        preview_text.configure(state='disabled')
-        
-        # Execution section
-        execution_frame = ttk.LabelFrame(execution_panel, text="Execution", padding="5")
-        execution_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        # Status label
-        self.status_var = tk.StringVar(value="Ready")
-        status_label = ttk.Label(execution_frame, textvariable=self.status_var)
-        status_label.pack(fill=tk.X, pady=5)
-        
-        # Progress bar
-        self.progress_var = tk.DoubleVar()
-        progress_bar = ttk.Progressbar(execution_frame, mode='determinate', variable=self.progress_var)
-        progress_bar.pack(fill=tk.X, pady=5)
-        
-        # Button frame
-        button_frame = ttk.Frame(execution_panel)
-        button_frame.pack(fill=tk.X, pady=5)
-        
-        # Load available playbooks
-        dir_manager = DirectoryManager()
-        playbooks = dir_manager.get_playbooks()
-        
-        for playbook_name in playbooks.keys():
-            playbook_list.insert(tk.END, playbook_name)
-        
-        def update_preview(*args):
-            """Update preview when a playbook is selected"""
-            selection = playbook_list.curselection()
-            if not selection:
-                return
-            
-            playbook_name = playbook_list.get(selection[0])
-            playbook_path = playbooks[playbook_name]
-            
-            try:
-                playbook = Playbook(playbook_path)
-                playbook.load()
-                
-                preview_text.configure(state='normal')
-                preview_text.delete(1.0, tk.END)
-                
-                # Format preview content
-                preview_content = f"Name: {playbook.config.name}\n"
-                preview_content += f"Description: {playbook.config.description}\n"
-                preview_content += f"Version: {playbook.config.version}\n"
-                preview_content += f"Author: {playbook.config.author}\n\n"
-                preview_content += "API Calls:\n"
-                
-                for call in playbook.api_calls:
-                    preview_content += f"\n- {call.name}:\n"
-                    preview_content += f"  Endpoint: {call.endpoint}\n"
-                    preview_content += f"  Method: {call.method}\n"
-                    if call.filters:
-                        preview_content += f"  Filters: {call.filters}\n"
-                    preview_content += f"  Output: {call.output}\n"
-                
-                preview_text.insert(1.0, preview_content)
-                preview_text.configure(state='disabled')
-                
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to load playbook: {str(e)}")
-        
-        def execute_playbook():
-            """Modified execute_playbook to consider device filters and show progress"""
-            selection = playbook_list.curselection()
-            if not selection:
-                messagebox.showwarning("Warning", "Please select a playbook")
-                return
-            
-            playbook_name = playbook_list.get(selection[0])
-            playbook_path = playbooks[playbook_name]
-            
-            # Get filtered devices
-            filtered_type = type_var.get()
-            if filtered_type != "all":
-                # Update connection's device cache with only filtered devices
-                for network_id in self.connection.selected_networks:
-                    devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network_id)
-                    self.connection.devices[network_id] = [
-                        d for d in devices if d.get('productType', '') == filtered_type
-                    ]
-            
-            try:
-                self.status_var.set("Loading playbook...")
-                self.progress_var.set(0)
-                
-                self.executor.load_playbook(playbook_path)
-                
-                # Set up callbacks
-                self.executor.set_callbacks(
-                    progress_callback=lambda p: self.progress_var.set(p),
-                    status_callback=lambda s: self.status_var.set(s)
-                )
-                
-                results = self.executor.execute()
-                
-                self.status_var.set("Generating report...")
-                self.progress_var.set(90)
-                
-                report_path = self.report_generator.generate_report('csv', playbook_name)
-                
-                self.status_var.set("Complete!")
-                self.progress_var.set(100)
-                
-                messagebox.showinfo("Success", 
-                                  f"Playbook executed successfully!\nReport saved to: {report_path}")
-                
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to execute playbook: {str(e)}")
-                self.status_var.set("Failed")
-            finally:
-                self.progress_var.set(0)
-        
-        # Bind playbook selection to preview update
-        playbook_list.bind('<<ListboxSelect>>', update_preview)
-        
-        # Add execute button
-        execute_btn = ttk.Button(button_frame, text="Execute Playbook", command=execute_playbook)
-        execute_btn.pack(side=tk.RIGHT, padx=5)
-        
-        # Add refresh button
-        refresh_btn = ttk.Button(button_frame, text="Refresh Playbooks", 
-                               command=lambda: [playbook_list.delete(0, tk.END)] + 
-                                            [playbook_list.insert(tk.END, name) 
-                                             for name in dir_manager.get_playbooks().keys()])
-        refresh_btn.pack(side=tk.RIGHT, padx=5) 
+        # Initial population of network tree
+        refresh_network_tree() 
