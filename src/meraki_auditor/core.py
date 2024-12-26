@@ -163,21 +163,39 @@ class PlaybookExecutor:
         self.update_status(f"Starting execution of playbook: {self.current_playbook.config.name}")
         self.update_progress(0)
         
+        # First, ensure we have devices cached if we need them
+        if any(step.requires_device for step in self.current_playbook.api_calls):
+            self.update_status("Caching devices from networks...")
+            for network in self.connection.selected_networks:
+                if network['id'] not in self.connection.devices:
+                    try:
+                        devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
+                        self.connection.devices[network['id']] = [d for d in devices if 'serial' in d]
+                        logger.info(f"Cached {len(devices)} devices from network {network['name']}")
+                    except Exception as e:
+                        logger.error(f"Failed to cache devices for network {network['name']}: {e}")
+        
         for idx, step in enumerate(self.current_playbook.api_calls, 1):
             step_progress_base = (idx - 1) / total_steps * 100
             step_results = []
             
             self.update_status(f"Executing step {idx}/{total_steps}: {step.name}")
             
-            # Handle network-level API calls
-            if step.endpoint.startswith('networks.'):
-                step_results.extend(self._execute_network_call(step, step_progress_base))
+            try:
+                if step.requires_device:
+                    # Device-level API call - iterate through cached devices
+                    step_results.extend(self._execute_device_call(step, step_progress_base))
+                else:
+                    # Network-level API call
+                    step_results.extend(self._execute_network_call(step, step_progress_base))
+                
+                results[step.output_folder] = step_results
+                
+            except Exception as e:
+                error_msg = f"Failed to execute step {step.name}: {str(e)}"
+                logger.error(error_msg)
+                results[step.output_folder] = [{'error': error_msg}]
             
-            # Handle device-level API calls
-            elif step.endpoint.startswith('devices.'):
-                step_results.extend(self._execute_device_call(step, step_progress_base))
-            
-            results[step.output_folder] = step_results
             self.update_progress(idx / total_steps * 100)
         
         execution_time = (datetime.now() - start_time).total_seconds()
@@ -415,3 +433,16 @@ class ReportGenerator:
                     print(f"\nGenerated CSV with columns: {list(df.columns)}")
         
         return report_dir 
+
+class ApiCall:
+    def __init__(self, name: str, endpoint: str, method: str, output_folder: str, 
+                 parameters: Dict = None, filters: Dict = None):
+        self.name = name
+        self.endpoint = endpoint
+        self.method = method
+        self.output_folder = output_folder
+        self.parameters = parameters or {}
+        self.filters = filters or {}
+        
+        # Determine if this call requires a device serial
+        self.requires_device = endpoint.startswith('devices.') 
