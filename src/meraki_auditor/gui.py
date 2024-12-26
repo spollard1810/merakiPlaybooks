@@ -201,6 +201,67 @@ class AuditorGUI:
         network_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         network_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
+        def export_device_inventory():
+            """Export all devices from selected networks to CSV"""
+            try:
+                self.status_var.set("Exporting device inventory...")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                dir_manager = DirectoryManager()
+                report_path = dir_manager.create_report_directory("device_inventory")
+                
+                all_devices = []
+                for network in self.networks:
+                    if network['id'] in self.selected_networks:
+                        try:
+                            devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
+                            for device in devices:
+                                device['networkName'] = network['name']
+                                device['networkId'] = network['id']
+                                all_devices.append(device)
+                        except Exception as e:
+                            messagebox.showerror("Error", 
+                                               f"Failed to get devices for network {network['name']}: {str(e)}")
+                
+                if all_devices:
+                    import pandas as pd
+                    df = pd.DataFrame(all_devices)
+                    
+                    # Reorder columns to put important info first
+                    important_cols = ['networkName', 'name', 'model', 'serial', 'productType', 
+                                    'networkId', 'mac', 'lanIp', 'firmware', 'status']
+                    cols = [col for col in important_cols if col in df.columns] + \
+                          [col for col in df.columns if col not in important_cols]
+                    df = df[cols]
+                    
+                    csv_path = report_path / f'device_inventory_{timestamp}.csv'
+                    df.to_csv(csv_path, index=False)
+                    
+                    self.status_var.set("Device inventory exported successfully!")
+                    messagebox.showinfo("Success", f"Device inventory exported to:\n{csv_path}")
+                else:
+                    messagebox.showwarning("Warning", "No devices found in selected networks")
+                    
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to export device inventory: {str(e)}")
+                self.status_var.set("Export failed")
+            finally:
+                self.status_var.set("Ready")
+        
+        # Add button frame below tree
+        network_button_frame = ttk.Frame(network_panel)
+        network_button_frame.pack(fill=tk.X, pady=5)
+
+        # Add refresh button to network panel
+        refresh_btn = ttk.Button(network_button_frame, text="Refresh Devices", 
+                               command=refresh_network_tree)
+        refresh_btn.pack(side=tk.LEFT, padx=5)
+
+        # Add export button
+        export_btn = ttk.Button(network_button_frame, text="Export Device Inventory", 
+                               command=export_device_inventory)
+        export_btn.pack(side=tk.LEFT, padx=5)
+        
         # Populate network tree
         for network in self.connection.selected_networks:
             network_node = network_tree.insert("", tk.END, text=network['name'], open=True)
@@ -271,66 +332,179 @@ class AuditorGUI:
                     logger.error(error_msg)
                     network_tree.insert(network_node, tk.END, text=error_msg)
         
-        # Add refresh button to network panel
-        refresh_btn = ttk.Button(network_button_frame, text="Refresh Devices", 
-                                 command=refresh_network_tree)
-        refresh_btn.pack(side=tk.LEFT, padx=5)
+        # Add filter button
+        filter_frame = ttk.LabelFrame(execution_panel, text="Device Filters", padding="5")
+        filter_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # Add export button frame below tree
-        network_button_frame = ttk.Frame(network_panel)
-        network_button_frame.pack(fill=tk.X, pady=5)
-
-        def export_device_inventory():
-            """Export all devices from selected networks to CSV"""
+        # Device type filter
+        type_frame = ttk.Frame(filter_frame)
+        type_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(type_frame, text="Device Type:").pack(side=tk.LEFT)
+        type_var = tk.StringVar(value="all")
+        type_combo = ttk.Combobox(type_frame, textvariable=type_var, 
+                                 values=["all"] + list(set(d.get('productType', '') 
+                                                         for n in self.networks 
+                                                         for d in self.connection.dashboard.networks.getNetworkDevices(networkId=n['id']))))
+        type_combo.pack(side=tk.LEFT, padx=5)
+        
+        def apply_device_filter(*args):
+            """Filter devices in tree based on selected type"""
+            filter_type = type_var.get()
+            for network_id in network_tree.get_children():
+                for device_id in network_tree.get_children(network_id):
+                    device_type = network_tree.item(device_id)['values'][0]
+                    if filter_type == "all" or device_type == filter_type:
+                        network_tree.item(device_id, tags=())  # Show
+                    else:
+                        network_tree.item(device_id, tags=('hidden',))  # Hide
+            
+            network_tree.tag_configure('hidden', hide=True)
+        
+        type_combo.bind('<<ComboboxSelected>>', apply_device_filter)
+        
+        # Add filter button
+        ttk.Button(filter_frame, text="Clear Filters", 
+                   command=lambda: [type_var.set("all"), apply_device_filter()]).pack(pady=5)
+        
+        # Preview section
+        preview_frame = ttk.LabelFrame(execution_panel, text="Playbook Preview", padding="5")
+        preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        
+        # Preview text widget
+        preview_text = tk.Text(preview_frame, wrap=tk.WORD, height=10, width=50)
+        preview_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        preview_scroll = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=preview_text.yview)
+        preview_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        preview_text.configure(yscrollcommand=preview_scroll.set)
+        preview_text.configure(state='disabled')
+        
+        # Execution section
+        execution_frame = ttk.LabelFrame(execution_panel, text="Execution", padding="5")
+        execution_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # Status label
+        self.status_var = tk.StringVar(value="Ready")
+        status_label = ttk.Label(execution_frame, textvariable=self.status_var)
+        status_label.pack(fill=tk.X, pady=5)
+        
+        # Progress bar
+        self.progress_var = tk.DoubleVar()
+        progress_bar = ttk.Progressbar(execution_frame, mode='determinate', variable=self.progress_var)
+        progress_bar.pack(fill=tk.X, pady=5)
+        
+        # Button frame
+        button_frame = ttk.Frame(execution_panel)
+        button_frame.pack(fill=tk.X, pady=5)
+        
+        # Load available playbooks
+        dir_manager = DirectoryManager()
+        playbooks = dir_manager.get_playbooks()
+        
+        for playbook_name in playbooks.keys():
+            playbook_list.insert(tk.END, playbook_name)
+        
+        def update_preview(*args):
+            """Update preview when a playbook is selected"""
+            selection = playbook_list.curselection()
+            if not selection:
+                return
+            
+            playbook_name = playbook_list.get(selection[0])
+            playbook_path = playbooks[playbook_name]
+            
             try:
-                self.status_var.set("Exporting device inventory...")
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                playbook = Playbook(playbook_path)
+                playbook.load()
                 
-                dir_manager = DirectoryManager()
-                report_path = dir_manager.create_report_directory("device_inventory")
+                preview_text.configure(state='normal')
+                preview_text.delete(1.0, tk.END)
                 
-                all_devices = []
-                for network in self.networks:
-                    if network['id'] in self.selected_networks:
-                        try:
-                            devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network['id'])
-                            for device in devices:
-                                device['networkName'] = network['name']
-                                device['networkId'] = network['id']
-                                all_devices.append(device)
-                        except Exception as e:
-                            messagebox.showerror("Error", 
-                                               f"Failed to get devices for network {network['name']}: {str(e)}")
+                # Format preview content
+                preview_content = f"Name: {playbook.config.name}\n"
+                preview_content += f"Description: {playbook.config.description}\n"
+                preview_content += f"Version: {playbook.config.version}\n"
+                preview_content += f"Author: {playbook.config.author}\n\n"
+                preview_content += "API Calls:\n"
                 
-                if all_devices:
-                    import pandas as pd
-                    df = pd.DataFrame(all_devices)
-                    
-                    # Reorder columns to put important info first
-                    important_cols = ['networkName', 'name', 'model', 'serial', 'productType', 
-                                    'networkId', 'mac', 'lanIp', 'firmware', 'status']
-                    cols = [col for col in important_cols if col in df.columns] + \
-                          [col for col in df.columns if col not in important_cols]
-                    df = df[cols]
-                    
-                    csv_path = report_path / f'device_inventory_{timestamp}.csv'
-                    df.to_csv(csv_path, index=False)
-                    
-                    self.status_var.set("Device inventory exported successfully!")
-                    messagebox.showinfo("Success", f"Device inventory exported to:\n{csv_path}")
-                else:
-                    messagebox.showwarning("Warning", "No devices found in selected networks")
-                    
+                for call in playbook.api_calls:
+                    preview_content += f"\n- {call.name}:\n"
+                    preview_content += f"  Endpoint: {call.endpoint}\n"
+                    preview_content += f"  Method: {call.method}\n"
+                    if call.filters:
+                        preview_content += f"  Filters: {call.filters}\n"
+                    preview_content += f"  Output: {call.output}\n"
+                
+                preview_text.insert(1.0, preview_content)
+                preview_text.configure(state='disabled')
+                
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to export device inventory: {str(e)}")
-                self.status_var.set("Export failed")
+                messagebox.showerror("Error", f"Failed to load playbook: {str(e)}")
+        
+        def execute_playbook():
+            """Modified execute_playbook to consider device filters and show progress"""
+            selection = playbook_list.curselection()
+            if not selection:
+                messagebox.showwarning("Warning", "Please select a playbook")
+                return
+            
+            playbook_name = playbook_list.get(selection[0])
+            playbook_path = playbooks[playbook_name]
+            
+            # Get filtered devices
+            filtered_type = type_var.get()
+            if filtered_type != "all":
+                # Update connection's device cache with only filtered devices
+                for network_id in self.connection.selected_networks:
+                    devices = self.connection.dashboard.networks.getNetworkDevices(networkId=network_id)
+                    self.connection.devices[network_id] = [
+                        d for d in devices if d.get('productType', '') == filtered_type
+                    ]
+            
+            try:
+                self.status_var.set("Loading playbook...")
+                self.progress_var.set(0)
+                
+                self.executor.load_playbook(playbook_path)
+                
+                # Set up callbacks
+                self.executor.set_callbacks(
+                    progress_callback=lambda p: self.progress_var.set(p),
+                    status_callback=lambda s: self.status_var.set(s)
+                )
+                
+                results = self.executor.execute()
+                
+                self.status_var.set("Generating report...")
+                self.progress_var.set(90)
+                
+                report_path = self.report_generator.generate_report('csv', playbook_name)
+                
+                self.status_var.set("Complete!")
+                self.progress_var.set(100)
+                
+                messagebox.showinfo("Success", 
+                                  f"Playbook executed successfully!\nReport saved to: {report_path}")
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to execute playbook: {str(e)}")
+                self.status_var.set("Failed")
             finally:
-                self.status_var.set("Ready")
-
-        # Add export button
-        export_btn = ttk.Button(network_button_frame, text="Export Device Inventory", 
-                               command=export_device_inventory)
-        export_btn.pack(side=tk.LEFT, padx=5)
+                self.progress_var.set(0)
+        
+        # Bind playbook selection to preview update
+        playbook_list.bind('<<ListboxSelect>>', update_preview)
+        
+        # Add execute button
+        execute_btn = ttk.Button(button_frame, text="Execute Playbook", command=execute_playbook)
+        execute_btn.pack(side=tk.RIGHT, padx=5)
+        
+        # Add refresh button
+        refresh_btn = ttk.Button(button_frame, text="Refresh Playbooks", 
+                               command=lambda: [playbook_list.delete(0, tk.END)] + 
+                                            [playbook_list.insert(tk.END, name) 
+                                             for name in dir_manager.get_playbooks().keys()])
+        refresh_btn.pack(side=tk.RIGHT, padx=5)
         
         # ===== PLAYBOOK PANEL (MIDDLE) =====
         playbook_panel = ttk.LabelFrame(main_frame, text="Available Playbooks", padding="5")
